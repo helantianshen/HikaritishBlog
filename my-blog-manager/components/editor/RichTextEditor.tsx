@@ -1,61 +1,32 @@
 "use client";
 
 import React, { useState, useImperativeHandle, forwardRef, useEffect, useRef } from 'react';
-import { useEditor, EditorContent, Extension } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
-import Image from '@tiptap/extension-image';
-import Subscript from '@tiptap/extension-subscript';
-import Superscript from '@tiptap/extension-superscript';
-import TextAlign from '@tiptap/extension-text-align';
-import Highlight from '@tiptap/extension-highlight';
-import { TextStyle } from '@tiptap/extension-text-style';
-import { Color } from '@tiptap/extension-color';
-import TaskList from '@tiptap/extension-task-list';
-import TaskItem from '@tiptap/extension-task-item';
-
-// 🌟 引入 Markdown 插件
-import { Markdown } from 'tiptap-markdown';
-
-// 🌟 引入满血版 C++ 语法高亮
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
-import { createLowlight, all } from 'lowlight';
+import { useEditor, EditorContent } from '@tiptap/react';
+import type { Editor } from '@tiptap/core';
+import { createEditorExtensions } from './rich-text/extensions/editor-extensions';
+import { normalizeEditorHtml, prepareInitialContent } from './rich-text/editor-html';
+import { useEditorImageUpload } from './rich-text/hooks/use-editor-image-upload';
+import EditorOverlays from './rich-text/EditorOverlays';
 
 import {
-  Undo2, Redo2, Eraser, Bold, Italic, Underline as UnderlineIcon, Strikethrough,
+  Undo2, Redo2, Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   AlignLeft, AlignCenter, AlignRight, List, ListOrdered, ListTodo,
   Highlighter, Code2, Heading1, Heading2, Heading3,
   Type, ImageIcon, Quote, RemoveFormatting, ChevronDown,
-  Pipette, Hash, Check, Link2, Superscript as SupIcon, Subscript as SubIcon, Minus, Palette, Lock
+  Pipette, Hash, Check, Link2, Superscript as SupIcon, Subscript as SubIcon, Palette, Lock
 } from 'lucide-react';
-
-const lowlight = createLowlight(all);
-
-const CustomImage = Image.extend({
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      width: {
-        default: '100%',
-        renderHTML: attributes => ({
-          style: `width: ${attributes.width}; height: auto; display: block; margin: 2rem auto; border-radius: 2rem; box-shadow: 0 20px 50px rgba(0,0,0,0.15);`
-        })
-      }
-    };
-  },
-});
-
-const FontSize = Extension.create({
-  name: 'fontSize',
-  addOptions() { return { types: ['textStyle'] }; },
-  addGlobalAttributes() { return [{ types: this.options.types, attributes: { fontSize: { default: null, parseHTML: element => element.style.fontSize?.replace(/['"]+/g, ''), renderHTML: attributes => attributes.fontSize ? { style: `font-size: ${attributes.fontSize}` } : {} } } }]; },
-  addCommands() { return { setFontSize: (fontSize: string) => ({ chain }) => chain().setMark('textStyle', { fontSize }).run() }; },
-});
 
 // 🌟 终极修复：彻底废弃 absolute 下拉框，升级为 Fixed 居中模态框 (Modal)！
 // 这样就能 100% 逃脱父级容器的 overflow 限制，绝对不可能再被遮挡！
-const CustomColorPicker = ({ activeColor, onSelect, onConfirm, recentColors, onClose }: any) => {
+interface ColorPickerProps {
+  activeColor: string;
+  onSelect: (color: string) => void;
+  onConfirm: (color: string) => void;
+  recentColors: string[];
+  onClose: () => void;
+}
+
+const CustomColorPicker = ({ activeColor, onSelect, onConfirm, recentColors, onClose }: ColorPickerProps) => {
   const presets = ['#000000', '#6366F1', '#EC4899', '#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6'];
   const [hex, setHex] = useState(activeColor);
   return (
@@ -109,6 +80,25 @@ const CustomColorPicker = ({ activeColor, onSelect, onConfirm, recentColors, onC
   );
 };
 
+interface ToolbarButtonProps {
+  onClick: () => void;
+  active?: boolean;
+  children: React.ReactNode;
+  title?: string;
+}
+
+const Btn = ({ onClick, active, children, title }: ToolbarButtonProps) => (
+  <button
+    type="button"
+    onClick={onClick}
+    title={title}
+    className={`p-2.5 rounded-xl transition-all duration-300 ease-out flex items-center justify-center
+      ${active ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/40 scale-110' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'}`}
+  >
+    {children}
+  </button>
+);
+
 export interface RichTextEditorHandle {
   insertImage: (url: string) => void;
   getContent: () => string;
@@ -130,29 +120,13 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, EditorProps>(({ title, s
   const [showHighlightPicker, setShowHighlightPicker] = useState(false);
 
   const loadedContentRef = useRef<string | null>(null);
+  const liveEditorRef = useRef<Editor | null>(null);
   const [, setRenderTrigger] = useState(0);
+  const { pickAndInsert, uploadAndInsert } = useEditorImageUpload();
 
   const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-        codeBlock: false,
-      }),
-      CodeBlockLowlight.configure({
-        lowlight,
-        defaultLanguage: 'cpp',
-        HTMLAttributes: {
-          class: 'bg-[#282c34] text-[#abb2bf] p-6 rounded-[1.5rem] font-mono my-6 overflow-x-auto shadow-inner'
-        },
-      }),
-      Underline, Subscript, Superscript, TextStyle, Color, FontSize, CustomImage,
-      Link.configure({ openOnClick: false, HTMLAttributes: { class: 'text-indigo-500 underline cursor-pointer font-bold' } }),
-      TextAlign.configure({ types: ['heading', 'paragraph'] }),
-      Highlight.configure({ multicolor: true }),
-      TaskList.configure({ HTMLAttributes: { class: 'not-prose space-y-3' } }),
-      TaskItem.configure({ nested: true }),
-    ],
-    content: initialContent || '',
+    extensions: createEditorExtensions({ placeholder: '输入 / 唤起命令菜单...' }),
+    content: prepareInitialContent(initialContent || ''),
     immediatelyRender: false,
     onUpdate: () => {
       if (onChange) onChange();
@@ -161,9 +135,41 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, EditorProps>(({ title, s
       setRenderTrigger(v => v + 1);
     },
     editorProps: {
-      attributes: { class: 'prose prose-slate dark:prose-invert prose-lg max-w-none w-full focus:outline-none min-h-full pb-60 font-serif leading-relaxed px-4 editor-content-area' }
+      attributes: {
+        class: 'prose prose-slate dark:prose-invert prose-lg max-w-none w-full focus:outline-none min-h-full pb-60 font-serif leading-relaxed px-4 editor-content-area',
+        spellcheck: 'false',
+      },
+      handlePaste: (_view, event) => {
+        const currentEditor = liveEditorRef.current;
+        if (!currentEditor) return false;
+        const images = Array.from(event.clipboardData?.items || [])
+          .filter((item) => item.type.startsWith('image/'))
+          .map((item) => item.getAsFile())
+          .filter((file): file is File => Boolean(file));
+        if (!images.length) return false;
+        event.preventDefault();
+        images.forEach((file) => void uploadAndInsert(currentEditor, file));
+        return true;
+      },
+      handleDrop: (_view, event) => {
+        const currentEditor = liveEditorRef.current;
+        if (!currentEditor) return false;
+        const images = Array.from(event.dataTransfer?.files || [])
+          .filter((file) => file.type.startsWith('image/'));
+        if (!images.length) return false;
+        event.preventDefault();
+        images.forEach((file) => void uploadAndInsert(currentEditor, file));
+        return true;
+      },
     },
   });
+
+  useEffect(() => {
+    liveEditorRef.current = editor;
+    return () => {
+      if (liveEditorRef.current === editor) liveEditorRef.current = null;
+    };
+  }, [editor]);
 
   useImperativeHandle(ref, () => ({
     insertImage: (url: string) => {
@@ -174,20 +180,14 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, EditorProps>(({ title, s
     },
     getContent: () => {
       if (!editor) return '';
-      let html = editor.getHTML();
-
-      html = html.replace(/<p><\/p>/gi, '<br>&zwj;');
-      html = html.replace(/<p><br><\/p>/gi, '<br>&zwj;');
-
-      return html;
+      return normalizeEditorHtml(editor.getHTML());
     }
   }), [editor, onChange]);
 
   useEffect(() => {
     if (!editor || !initialContent) return;
     if (loadedContentRef.current !== initialContent) {
-      const safeContent = initialContent.replace(/~~([\s\S]*?)~~/g, '<s>$1</s>');
-      editor.commands.setContent(safeContent, false);
+      editor.commands.setContent(prepareInitialContent(initialContent), { emitUpdate: false });
       loadedContentRef.current = initialContent;
     }
   }, [editor, initialContent]);
@@ -212,16 +212,9 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, EditorProps>(({ title, s
     editor.chain().focus().extendMarkRange('link').setLink({ href: safeUrl }).run();
   };
 
-  const Btn = ({ onClick, active, children, title }: any) => (
-    <button
-      onClick={onClick}
-      title={title}
-      className={`p-2.5 rounded-xl transition-all duration-300 ease-out flex items-center justify-center 
-        ${active ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/40 scale-110' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'}`}
-    >
-      {children}
-    </button>
-  );
+  const setImageWidth = (percent: number) => {
+    editor.chain().focus().updateAttributes('image', { width: `${percent}%` }).run();
+  };
 
   return (
     <div className="flex flex-col h-full w-full min-h-0 bg-transparent relative">
@@ -274,6 +267,34 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, EditorProps>(({ title, s
         .editor-content-area pre code .hljs-built_in, .editor-content-area pre code .hljs-class .hljs-title, .editor-content-area pre code .hljs-title.class_ { color: #e6c07b; } 
         .editor-content-area pre code .hljs-attr, .editor-content-area pre code .hljs-variable, .editor-content-area pre code .hljs-template-variable, .editor-content-area pre code .hljs-selector-class, .editor-content-area pre code .hljs-selector-attr, .editor-content-area pre code .hljs-selector-pseudo, .editor-content-area pre code .hljs-number { color: #d19a66; }
         .editor-content-area pre code .hljs-symbol, .editor-content-area pre code .hljs-bullet, .editor-content-area pre code .hljs-link, .editor-content-area pre code .hljs-meta, .editor-content-area pre code .hljs-selector-id, .editor-content-area pre code .hljs-title, .editor-content-area pre code .hljs-title.function_ { color: #61aeee; } 
+
+        .editor-content-area p.is-editor-empty:first-child::before {
+          content: attr(data-placeholder);
+          float: left;
+          height: 0;
+          color: #94a3b8;
+          pointer-events: none;
+          opacity: 0.55;
+        }
+        .editor-content-area ul[data-type="taskList"] { list-style: none !important; padding-left: 0 !important; }
+        .editor-content-area li[data-type="taskItem"] { display: flex !important; align-items: flex-start; gap: 0.75rem; }
+        .editor-content-area li[data-type="taskItem"] > label { margin-top: 0.45rem; user-select: none; }
+        .editor-content-area li[data-type="taskItem"] > div { flex: 1; min-width: 0; }
+        .editor-content-area .tableWrapper { margin: 2rem 0; overflow-x: auto; border-radius: 1.25rem; }
+        .editor-content-area table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+        .editor-content-area th, .editor-content-area td { min-width: 7rem; border-right: 1px solid rgba(148, 163, 184, 0.3); border-bottom: 1px solid rgba(148, 163, 184, 0.3); padding: 0.75rem 1rem; vertical-align: top; }
+        .editor-content-area tr:first-child th, .editor-content-area tr:first-child td { border-top: 1px solid rgba(148, 163, 184, 0.3); }
+        .editor-content-area th:first-child, .editor-content-area td:first-child { border-left: 1px solid rgba(148, 163, 184, 0.3); }
+        .editor-content-area th { background: rgba(99, 102, 241, 0.08); font-weight: 800; }
+        .editor-content-area .selectedCell { position: relative; }
+        .editor-content-area .selectedCell::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: rgba(99, 102, 241, 0.16); box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.55); }
+        .editor-content-area .pm-block-selected { background: rgba(99, 102, 241, 0.12); border-radius: 0.35rem; }
+        .editor-content-area.pm-select-all ::selection { background: transparent; }
+        .editor-content-area .image-block-wrapper { line-height: 0; }
+        .editor-content-area .code-block-node pre { margin: 0 !important; background: transparent !important; }
+        @media (prefers-reduced-motion: reduce) {
+          .editor-content-area *, .editor-content-area *::before, .editor-content-area *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+        }
       `}} />
 
       <div className="shrink-0 px-12 pt-14 pb-4 flex items-center gap-4">
@@ -347,7 +368,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, EditorProps>(({ title, s
           <Btn onClick={onOpenImageTool}><ImageIcon size={16} className="text-indigo-500"/></Btn>
         </div>
 
-        {editor.isActive('image') && <div className="flex items-center gap-1 ml-4 bg-indigo-500/10 p-1 px-3 rounded-2xl border border-indigo-500/20 border-dashed animate-in slide-in-from-left">{['25%', '50%', '75%', '100%'].map(s => <button key={s} onClick={() => editor.chain().focus().updateAttributes('image', { width: s }).run()} className="px-2 py-1 text-[9px] font-bold hover:bg-white rounded-lg transition-all">{s}</button>)}</div>}
+        {editor.isActive('image') && <div className="flex items-center gap-1 ml-4 bg-indigo-500/10 p-1 px-3 rounded-2xl border border-indigo-500/20 border-dashed animate-in slide-in-from-left">{[25, 50, 75, 100].map(s => <button key={s} onClick={() => setImageWidth(s)} className="px-2 py-1 text-[9px] font-bold hover:bg-white rounded-lg transition-all">{s}%</button>)}</div>}
         <div className="flex-1" />
         <div className="flex items-center gap-4">
           <div className="relative">
@@ -380,7 +401,12 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, EditorProps>(({ title, s
       {showTextPicker && <CustomColorPicker activeColor="#6366F1" recentColors={textColors} onClose={() => setShowTextPicker(false)} onSelect={(c: string) => editor.chain().focus().setColor(c).run()} onConfirm={(c: string) => { if(!textColors.includes(c)) setTextColors(p => [c, ...p].slice(0, 6)); setShowTextPicker(false); }} />}
       {showHighlightPicker && <CustomColorPicker activeColor="#FEF08A" recentColors={highlightColors} onClose={() => setShowHighlightPicker(false)} onSelect={(c: string) => editor.chain().focus().setHighlight({ color: c }).run()} onConfirm={(c: string) => { if(!highlightColors.includes(c)) setHighlightColors(p => [c, ...p].slice(0, 6)); setShowHighlightPicker(false); }} />}
 
-      <div className="flex-1 overflow-y-auto px-12 py-12 custom-scrollbar"><EditorContent editor={editor} /></div>
+      <div className="flex-1 overflow-y-auto px-12 py-12 custom-scrollbar">
+        <div className="relative min-h-full">
+          <EditorOverlays editor={editor} pickImage={pickAndInsert} />
+          <EditorContent editor={editor} />
+        </div>
+      </div>
     </div>
   );
 });

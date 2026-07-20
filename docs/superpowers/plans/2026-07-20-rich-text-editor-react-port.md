@@ -6,7 +6,7 @@
 
 **Architecture:** Keep `components/editor/RichTextEditor.tsx` as the stable visual shell and HTML adapter. Add focused React/Tiptap modules under `components/editor/rich-text/` for schema extensions, command registries, menus, hooks, and NodeViews; all new overlays use the existing indigo/slate glass styling and do not import Vue or `ohmyblog` CSS.
 
-**Tech Stack:** Next.js 16, React 19, TypeScript, Tiptap 3.23.4, ProseMirror, lowlight, tiptap-markdown, Vitest, jsdom, React Testing Library.
+**Tech Stack:** Next.js 16, React 19, TypeScript, Tiptap 3.28.0, ProseMirror, lowlight, tiptap-markdown, Vitest, jsdom, React Testing Library.
 
 ---
 
@@ -21,9 +21,9 @@
 
 - [ ] **Step 1: Add the test command and required dependencies**
 
-Set every direct `@tiptap/*` dependency to `3.23.4`. Add
+Set every direct `@tiptap/*` dependency to `3.28.0`. Add
 `@tiptap/extension-character-count`, `@tiptap/extension-table`, and
-`@tiptap/suggestion` at `3.23.4`. Add `vitest`, `jsdom`,
+`@tiptap/suggestion` at `3.28.0`. Add `vitest`, `jsdom`,
 `@testing-library/react`, and `@testing-library/jest-dom` as development
 dependencies, plus this script:
 
