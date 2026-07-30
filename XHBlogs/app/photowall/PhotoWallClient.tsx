@@ -3,10 +3,23 @@
 import { useState, useMemo, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
-import { albums, Album } from '../../data/albums';
 
-export default function PhotoWallClient() {
-  const [currentAlbum, setCurrentAlbum] = useState<Album | null>(null);
+interface PhotoView {
+  url: string;
+  caption?: string;
+}
+
+interface AlbumView {
+  id: string;
+  title: string;
+  description: string;
+  cover: string;
+  date: string;
+  photos: PhotoView[];
+}
+
+export default function PhotoWallClient({ albums }: { albums: AlbumView[] }) {
+  const [currentAlbum, setCurrentAlbum] = useState<AlbumView | null>(null);
   const [selectedImage, setSelectedImage] = useState<{url: string, caption?: string} | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -37,7 +50,7 @@ export default function PhotoWallClient() {
     ).filter(photo => photo.caption?.toLowerCase().includes(activeQuery));
 
     return { matchedAlbums, matchedPhotos };
-  }, [activeQuery]);
+  }, [activeQuery, albums]);
 
   return (
     <div className="min-h-screen relative pb-32">
@@ -102,7 +115,7 @@ export default function PhotoWallClient() {
                 )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-20 mt-10">
-                  {matchedAlbums.map((album, index) => (
+                  {matchedAlbums.map((album) => (
                     <div
                       key={album.id}
                       onClick={() => { setSearchQuery(''); setCurrentAlbum(album); }}

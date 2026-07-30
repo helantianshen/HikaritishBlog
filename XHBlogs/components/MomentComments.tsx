@@ -3,17 +3,18 @@
 import { useEffect, useRef } from 'react';
 import 'gitalk/dist/gitalk.css';
 import Gitalk from 'gitalk';
-import { siteConfig } from '../siteConfig';
+import { useLegacySiteConfig } from './SiteSettingsProvider';
 
 interface MomentCommentsProps {
   id: string; // 必须传入说说的专属 ID
 }
 
 export default function MomentComments({ id }: MomentCommentsProps) {
+  const siteConfig = useLegacySiteConfig();
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !siteConfig.gitalkConfig.enabled) return;
 
     // 清空重载，防止 React 严格模式下重复渲染
     containerRef.current.innerHTML = '';
@@ -24,13 +25,16 @@ export default function MomentComments({ id }: MomentCommentsProps) {
       repo: siteConfig.gitalkConfig.repo,
       owner: siteConfig.gitalkConfig.owner,
       admin: siteConfig.gitalkConfig.admin,
+      proxy: '/api/github',
       // 截取前49个字符作为 GitHub Issue 的 Label（Gitalk 的要求）
       id: id.substring(0, 49),
       distractionFreeMode: false,
     });
 
     gitalk.render(containerRef.current);
-  }, [id]);
+  }, [id, siteConfig.gitalkConfig]);
+
+  if (!siteConfig.gitalkConfig.enabled) return null;
 
   return (
     <div className="w-full relative">

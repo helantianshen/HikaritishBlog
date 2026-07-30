@@ -1,6 +1,43 @@
 "use client";
 import { useEffect, useRef } from 'react';
 
+class Ripple {
+  x: number;
+  y: number;
+  r = 0;
+  maxR = 60;
+  opacity = 0.6;
+  velocity = 2.5;
+
+  constructor(
+    x: number,
+    y: number,
+    private readonly ctx: CanvasRenderingContext2D,
+  ) {
+    this.x = x;
+    this.y = y;
+  }
+
+  update() {
+    this.r += this.velocity;
+    this.velocity *= 0.96;
+    this.opacity -= 0.015;
+  }
+
+  draw() {
+    this.ctx.beginPath();
+    this.ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    this.ctx.strokeStyle = `rgba(129, 140, 248, ${this.opacity})`;
+    this.ctx.lineWidth = 2;
+    this.ctx.stroke();
+
+    this.ctx.beginPath();
+    this.ctx.arc(this.x, this.y, this.r * 0.5, 0, Math.PI * 2);
+    this.ctx.fillStyle = `rgba(129, 140, 248, ${this.opacity * 0.3})`;
+    this.ctx.fill();
+  }
+}
+
 export default function ClickEffect() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -10,7 +47,7 @@ export default function ClickEffect() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let ripples: any[] = [];
+    const ripples: Ripple[] = [];
 
     const resize = () => {
       canvas.width = window.innerWidth;
@@ -19,53 +56,13 @@ export default function ClickEffect() {
     window.addEventListener('resize', resize);
     resize();
 
-    class Ripple {
-      x: number; y: number;
-      r: number;        // 半径
-      maxR: number;     // 最大半径
-      opacity: number;  // 透明度
-      velocity: number; // 扩散速度
-
-      constructor(x: number, y: number) {
-        this.x = x;
-        this.y = y;
-        this.r = 0;
-        this.maxR = 60;   // 涟漪扩散的大小，60 比较克制
-        this.opacity = 0.6;
-        this.velocity = 2.5;
-      }
-
-      update() {
-        this.r += this.velocity;
-        // 随着半径变大，扩散速度减慢（物理模拟）
-        this.velocity *= 0.96;
-        // 透明度线性衰减
-        this.opacity -= 0.015;
-      }
-
-      draw() {
-        if (!ctx) return;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-        // 使用你主题里的靛蓝色，并带上动态透明度
-        ctx.strokeStyle = `rgba(129, 140, 248, ${this.opacity})`;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // 内部再加一个极淡的实心圆，增加“触碰感”
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.r * 0.5, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(129, 140, 248, ${this.opacity * 0.3})`;
-        ctx.fill();
-      }
-    }
-
     const handleClick = (e: MouseEvent) => {
-      ripples.push(new Ripple(e.clientX, e.clientY));
+      ripples.push(new Ripple(e.clientX, e.clientY, ctx));
     };
 
     window.addEventListener('click', handleClick);
 
+    let animationFrame = 0;
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -81,11 +78,12 @@ export default function ClickEffect() {
           i--;
         }
       }
-      requestAnimationFrame(animate);
+      animationFrame = requestAnimationFrame(animate);
     };
     animate();
 
     return () => {
+      cancelAnimationFrame(animationFrame);
       window.removeEventListener('resize', resize);
       window.removeEventListener('click', handleClick);
     };

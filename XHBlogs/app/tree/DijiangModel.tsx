@@ -2,7 +2,7 @@
 
 import { Suspense, useMemo, useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Rocket, Loader2, FileText, MessageCircle, Lightbulb, ChevronLeft, ChevronRight, Layers, ChevronDown, ShieldAlert, AlertTriangle, Crosshair, Activity, Cpu, Camera, Users, Grid, X, LockKeyhole, Shield } from 'lucide-react';
+import { Loader2, FileText, MessageCircle, Lightbulb, ChevronLeft, ChevronRight, Layers, ChevronDown, ShieldAlert, AlertTriangle, Crosshair, Activity, Cpu, Camera, Users, Grid, X, LockKeyhole, Shield } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as THREE from 'three';
 
@@ -10,10 +10,8 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { Float, Html } from '@react-three/drei';
 
 import LabComments from '../../components/LabComments';
-import { siteConfig } from '../../siteConfig';
-
-import { albums } from '../../data/albums';
-import { friendsData } from '../../data/friends';
+import { useLegacySiteConfig } from '../../components/SiteSettingsProvider';
+import type { Album, Friend } from '../../lib/types';
 
 function seededRandom(seed: number) {
   const x = Math.sin(seed) * 10000;
@@ -74,12 +72,12 @@ const formatDisplayDate = (dateStr: string) => {
 // 🌟 2. 特效组件
 // ==========================================
 const BlinkingPoints = ({ geometry, color, size, opacity }: any) => {
-  const materialRef = useRef<any>();
+  const materialRef = useRef<any>(null);
   useMemo(() => {
     if (!geometry.hasAttribute('aPhase')) {
       const count = geometry.attributes.position.count;
       const phases = new Float32Array(count);
-      for(let i=0; i<count; i++) phases[i] = Math.random() * Math.PI * 2;
+      for(let i=0; i<count; i++) phases[i] = seededRandom(i + 7919) * Math.PI * 2;
       geometry.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
     }
   }, [geometry]);
@@ -324,7 +322,20 @@ const HologramShip = ({ activeCategory, currentRecords, router }: any) => {
 // ==========================================
 // 🌟 6. 核心页面渲染
 // ==========================================
-export default function DijiangModel({ posts = [], chatters = [], moments = [] }: any) {
+export default function DijiangModel({
+  posts = [],
+  chatters = [],
+  moments = [],
+  albums = [],
+  friends = [],
+}: {
+  posts?: any[];
+  chatters?: any[];
+  moments?: any[];
+  albums?: Album[];
+  friends?: Friend[];
+}) {
+  const siteConfig = useLegacySiteConfig();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [sysTip, setSysTip] = useState<string | null>(null);
@@ -339,14 +350,14 @@ export default function DijiangModel({ posts = [], chatters = [], moments = [] }
     if (siteConfig?.enableLevelSystem !== true) return null;
 
     const totalPhotos = (albums || []).reduce((acc: number, curr: any) => acc + (curr.photos?.length || 0), 0);
-    const totalFriends = (friendsData || []).length;
+    const totalFriends = friends.length;
 
     const parseDateStr = (dateVal: any) => {
       try {
         const d = new Date(dateVal);
         if (isNaN(d.getTime())) return null;
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      } catch (e) { return null; }
+      } catch { return null; }
     };
 
     const todayString = parseDateStr(new Date());
@@ -474,7 +485,7 @@ export default function DijiangModel({ posts = [], chatters = [], moments = [] }
       todayPosts: tp, todayChatters: tc, todayMoments: tm,
       ownedBadges, allCatalogBadges, ownedIds
     };
-  }, [posts, chatters, moments]);
+  }, [posts, chatters, moments, albums, friends, siteConfig.enableLevelSystem]);
 
   const availableMonths = useMemo(() => {
     const allItems = [...posts, ...chatters, ...moments];
@@ -492,13 +503,18 @@ export default function DijiangModel({ posts = [], chatters = [], moments = [] }
   const [activeCategory, setActiveCategory] = useState<'post' | 'chatter' | 'moment' | 'message' | null>(null);
 
   useEffect(() => {
-    if (!mounted) return;
+    const { enabled, owner, repo } = siteConfig.gitalkConfig;
+    if (!mounted || !enabled || !owner || !repo) {
+      setRealWishes([]);
+      return;
+    }
     let isMounted = true;
     const fetchGitalkComments = async () => {
       try {
-        const { owner, repo } = siteConfig.gitalkConfig;
         const targetLabel = `workshop-${currentMonthStr}`;
-        const issueRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues?labels=${targetLabel}`);
+        const issueRes = await fetch(
+          `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?labels=${encodeURIComponent(targetLabel)}`,
+        );
         const issues = await issueRes.json();
 
         if (issues && issues.length > 0) {
@@ -513,18 +529,18 @@ export default function DijiangModel({ posts = [], chatters = [], moments = [] }
           }
         }
         if (isMounted) setRealWishes([]);
-      } catch (err) {
+      } catch {
         if (isMounted) setRealWishes([]);
       }
     };
     fetchGitalkComments();
     return () => { isMounted = false; };
-  }, [currentMonthStr, mounted]);
+  }, [currentMonthStr, mounted, siteConfig.gitalkConfig]);
 
   const currentMonthRecords = useMemo(() => {
     const formatted = [...posts, ...chatters, ...moments].map(r => ({
       id: r.id || r.slug, slug: r.slug, type: r.type, title: r.title, date: r.date,
-      image: r.cover || r.image || 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop',
+      image: r.cover || r.image || '/window.svg',
       content: r.content
     })).filter(r => r.date.startsWith(currentMonthStr));
     return [...formatted, ...realWishes];
@@ -605,7 +621,7 @@ export default function DijiangModel({ posts = [], chatters = [], moments = [] }
 
             <div className="flex items-center gap-6 z-20 md:border-l border-[#333] md:pl-6 w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 mt-2 md:mt-0 relative group/tooltip cursor-crosshair">
               <div className="flex flex-col items-center flex-1 md:flex-none">
-                <span className="text-slate-400 text-[9px] font-bold tracking-[0.2em] mb-1">TODAY'S UPLINK</span>
+                <span className="text-slate-400 text-[9px] font-bold tracking-[0.2em] mb-1">TODAY&apos;S UPLINK</span>
                 <span className="text-[#eab308] font-mono text-sm font-black">+{rpgStats.todayExp} EXP</span>
               </div>
               <div className="flex flex-col items-center flex-1 md:flex-none">

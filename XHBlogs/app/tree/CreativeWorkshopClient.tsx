@@ -4,14 +4,28 @@ import { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
 import { motion, AnimatePresence } from 'framer-motion';
-import {Beaker, Rocket, Trees, Wrench} from 'lucide-react'; // 🌟 暂时移除了 Sofa 图标
-import { siteConfig } from '../../siteConfig'; // 🌟 引入站点配置
+import { Beaker, Rocket, Trees } from 'lucide-react';
+import { useLegacySiteConfig } from '../../components/SiteSettingsProvider';
+import type { Album, Friend } from '../../lib/types';
 
 import AlchemyLab from './AlchemyLab';
 import DijiangModel from './DijiangModel';
 // import OperatorRecreation from './OperatorRecreation'; // 🌟 先注释掉，以后需要随时可以加回来
 
-export default function CreativeWorkshopClient({ posts = [], chatters = [], moments = [] }: any) {
+export default function CreativeWorkshopClient({
+  posts = [],
+  chatters = [],
+  moments = [],
+  albums = [],
+  friends = [],
+}: {
+  posts?: any[];
+  chatters?: any[];
+  moments?: any[];
+  albums?: Album[];
+  friends?: Friend[];
+}) {
+  const siteConfig = useLegacySiteConfig();
   const [currentMode, setCurrentMode] = useState<'alchemy' | 'model'>('alchemy'); // 🌟 暂时只保留两个状态
 
   // =========================================================
@@ -66,7 +80,7 @@ export default function CreativeWorkshopClient({ posts = [], chatters = [], mome
       const progressPercent = ((remainingExp / expNeededForNextLevel) * 100).toFixed(1);
 
       // 5. 打印高度拟真化的控制台干员档案
-      console.groupCollapsed(`🛡️ [罗德岛数据终端] 干员 XingHuiSama 个人综合档案同步...`);
+      console.groupCollapsed(`🛡️ [罗德岛数据终端] 干员 ${siteConfig.authorName} 个人综合档案同步...`);
       console.log(`%c[当前等级] Lv.${level}`, 'color: #6366f1; font-weight: 900; font-size: 16px; text-shadow: 0 0 4px rgba(99,102,241,0.3);');
       console.log(`%c[升级进度] ${remainingExp} / ${expNeededForNextLevel} EXP (${progressPercent}%)`, 'color: #10b981; font-weight: bold;');
       console.log(`[总计累计] ${totalExp} EXP`);
@@ -82,7 +96,7 @@ export default function CreativeWorkshopClient({ posts = [], chatters = [], mome
     } catch (error) {
       console.error("经验系统计算流走火入魔：", error);
     }
-  }, [posts, chatters, moments]);
+  }, [posts, chatters, moments, siteConfig.authorName, siteConfig.enableLevelSystem]);
   // =========================================================
 
   return (
@@ -134,10 +148,10 @@ export default function CreativeWorkshopClient({ posts = [], chatters = [], mome
           {/* 动态渲染子组件 */}
           <AnimatePresence mode="wait">
             {currentMode === 'alchemy' && (
-              <AlchemyLab key="alchemy-view" posts={posts} chatters={chatters} moments={moments} />
+              <AlchemyLab key="alchemy-view" posts={posts} chatters={chatters} moments={moments} albums={albums} friends={friends} />
             )}
             {currentMode === 'model' && (
-              <DijiangModel key="model-view" posts={posts} chatters={chatters} moments={moments} />
+              <DijiangModel key="model-view" posts={posts} chatters={chatters} moments={moments} albums={albums} friends={friends} />
             )}
             {/* 🌟 第三种展示暂时隐藏 */}
           </AnimatePresence>

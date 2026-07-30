@@ -1,0 +1,39 @@
+# Dependency directories
+node_modules/
+.pnp/
+.yarn/cache/
+
+# Framework and build output
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Go build output
+server/blog-api
+coverage.out
+
+# Package-manager and debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/
+*.pem
+
+# Codex workspace metadata
+.agents/
+.codex/

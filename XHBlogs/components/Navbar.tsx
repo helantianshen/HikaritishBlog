@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform, PanInfo } from 'framer-motion';
-import { siteConfig } from '../siteConfig';
+import { useLegacySiteConfig } from './SiteSettingsProvider';
 
 export default function Navbar() {
+  const siteConfig = useLegacySiteConfig();
   const [showNav, setShowNav] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -68,7 +69,7 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScrollY]);
 
-  const navLinks = [
+  const defaultNavLinks = [
     { name: '首页', href: '/' },
     { name: '项目', href: '/projects' },
     { name: '归档', href: '/timeline' },
@@ -80,6 +81,9 @@ export default function Navbar() {
     { name: '友链', href: '/friends' },
     { name: '关于', href: '/about' },
   ];
+  const navLinks = siteConfig.navItems.length > 0
+    ? siteConfig.navItems.map((item) => ({ name: item.label, href: item.href }))
+    : defaultNavLinks;
 
   // 🌟 核心：过滤掉“灵境”，专供手机端使用，保证圆盘自动重新均匀排布
   const mobileNavLinks = navLinks.filter(link => link.href !== '/tree');

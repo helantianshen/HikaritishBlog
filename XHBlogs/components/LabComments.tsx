@@ -5,15 +5,16 @@ import { usePathname } from 'next/navigation';
 import 'gitalk/dist/gitalk.css';
 import Gitalk from 'gitalk';
 
-import { siteConfig } from '../siteConfig';
+import { useLegacySiteConfig } from './SiteSettingsProvider';
 
 // 🌟 专门为炼金实验室定制的 Gitalk 组件，不影响原有的 Comments.tsx
 export default function LabComments({ pageId }: { pageId?: string }) {
+  const siteConfig = useLegacySiteConfig();
   const containerRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !siteConfig.gitalkConfig.enabled) return;
 
     // 清空之前的评论区，防止切换月份时叠加
     containerRef.current.innerHTML = '';
@@ -41,7 +42,9 @@ export default function LabComments({ pageId }: { pageId?: string }) {
       window.history.replaceState({}, document.title, url.toString());
     }
 
-  }, [pathname, pageId]);
+  }, [pathname, pageId, siteConfig.gitalkConfig]);
+
+  if (!siteConfig.gitalkConfig.enabled) return null;
 
   return (
     <div className="w-full mt-16 relative">

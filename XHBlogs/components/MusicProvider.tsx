@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
-import { siteConfig } from '../siteConfig';
+import { useLegacySiteConfig } from './SiteSettingsProvider';
 
 // 【增强版 LRC 歌词解析】
 function parseLrc(lrcText: string) {
@@ -10,10 +10,10 @@ function parseLrc(lrcText: string) {
   const lines = lrcText.split(/\r?\n/);
   const result = [];
 
-  for (let line of lines) {
+  for (const line of lines) {
     const matches = [...line.matchAll(/\[(\d{2,}):(\d{2})(?:\.(\d{2,3}))?\]/g)];
     if (matches.length > 0) {
-      let text = line.replace(/\[\d{2,}:\d{2}(?:\.\d{2,3})?\]/g, '').trim();
+      const text = line.replace(/\[\d{2,}:\d{2}(?:\.\d{2,3})?\]/g, '').trim();
 
       // 剔除控制字符
       const cleanText = text.replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200D\uFEFF]/g, "");
@@ -63,6 +63,7 @@ interface MusicContextType {
 const MusicContext = createContext<MusicContextType | null>(null);
 
 export function MusicProvider({ children }: { children: ReactNode }) {
+  const siteConfig = useLegacySiteConfig();
   const [playlist, setPlaylist] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -93,7 +94,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
             id: song.id || Math.random().toString(),
             title: song.name || '未知歌曲',
             artist: song.artist || song.author || '未知歌手',
-            cover: song.cover || song.pic || 'https://bu.dusays.com/2026/03/24/69c24230a5ff8.jpg',
+            cover: song.cover || song.pic || '/window.svg',
             src: song.url,
             lrcUrl: null,
             lyrics: song.lrc ? parseLrc(song.lrc) : []
@@ -104,21 +105,22 @@ export function MusicProvider({ children }: { children: ReactNode }) {
           else setCurrentLyric("云端链路受阻");
           setIsLoading(false);
         }
-      } catch (error) {
+      } catch {
         if (isMounted) { setCurrentLyric("网络初始化失败"); setIsLoading(false); }
       }
     };
 
-    if (siteConfig.cloudMusicIds?.length > 0) fetchMusicData();
+    if (siteConfig.enableMusicPlayer && siteConfig.cloudMusicIds?.length > 0) fetchMusicData();
     else setIsLoading(false);
 
     return () => { isMounted = false; };
-  }, []);
+  }, [siteConfig.cloudMusicIds, siteConfig.enableMusicPlayer]);
+
+  const currentSong = playlist[currentIndex];
 
   useEffect(() => {
-    if (playlist.length === 0) return;
+    if (!currentSong) return;
     let isMounted = true;
-    const currentSong = playlist[currentIndex];
     setLyrics([]);
     setCurrentLyric("♪ 正在缓冲 ♪");
     if (currentSong.lyrics && currentSong.lyrics.length > 0) {
@@ -135,7 +137,10 @@ export function MusicProvider({ children }: { children: ReactNode }) {
              setLyrics(parsed);
              setPlaylist(prev => {
                 const newPlaylist = [...prev];
-                newPlaylist[currentIndex].lyrics = parsed;
+                newPlaylist[currentIndex] = {
+                  ...newPlaylist[currentIndex],
+                  lyrics: parsed,
+                };
                 return newPlaylist;
              });
           }
@@ -143,14 +148,17 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         .catch(() => { if (isMounted) setCurrentLyric("\u266a \u7eaf\u4eab\u97f3\u4e50 \u266a"); });
     }
 
+    return () => { isMounted = false; };
+  }, [currentIndex, currentSong]);
+
+  useEffect(() => {
     if (isPlaying && audioRef.current) {
       const playPromise = audioRef.current.play();
       if (playPromise !== undefined) {
         playPromise.catch(() => setIsPlaying(false));
       }
     }
-    return () => { isMounted = false; };
-  }, [currentIndex, playlist.length]); // 移除 playlist 依赖防止无限循环，只依赖长度
+  }, [currentIndex, isPlaying]);
 
   // 🌟 4. 同步音量到 audio 元素
   useEffect(() => {
@@ -238,8 +246,6 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       return 'loop';
     });
   };
-
-  const currentSong = playlist[currentIndex];
 
   return (
     <MusicContext.Provider value={{

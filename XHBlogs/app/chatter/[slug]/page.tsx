@@ -1,121 +1,16 @@
-import fs from 'fs';
-import path from 'path';
-import matter from 'gray-matter';
 import Link from 'next/link';
-
-// 🌟 核心升级：引入 Next.js 现代统一解析流
-import { unified } from 'unified';
-import remarkParse from 'remark-parse';
-import remarkGfm from 'remark-gfm'; // 🌟 挂载 GFM 支持删除线
-import remarkMath from 'remark-math';
-import remarkRehype from 'remark-rehype';
-import rehypeHighlight from 'rehype-highlight';
-import rehypeStringify from 'rehype-stringify';
-import rehypeKatex from 'rehype-katex';
+import { notFound } from 'next/navigation';
 
 // 🌟 引入神仙代码高亮主题（Atom One Dark）
 import 'highlight.js/styles/atom-one-dark.css';
 
 import Navbar from '../../../components/Navbar';
 import PageTransition from '../../../components/PageTransition';
-import { siteConfig } from '../../../siteConfig';
 import ClientSocials from '../../../components/ClientSocials';
 import SidebarLyric from '../../../components/SidebarLyric';
 import BackButton from '../../../components/BackButton';
 import Comments from '../../../components/Comments';
-
-export async function generateStaticParams() {
-  const chattersDirectory = path.join(process.cwd(), 'chatters');
-  if (!fs.existsSync(chattersDirectory)) return [];
-  const filenames = fs.readdirSync(chattersDirectory);
-  return filenames
-    .filter((name) => name.endsWith('.md'))
-    .map((name) => ({
-      slug: name.replace(/\.md$/, ''),
-    }));
-}
-
-async function getChatterData(slug: string) {
-  const fullPath = path.join(process.cwd(), 'chatters', `${slug}.md`);
-  const fileContents = fs.readFileSync(fullPath, 'utf8');
-
-  let { data, content } = matter(fileContents);
-
-  // ==========================================
-  // 🌟 前台渲染清洗区：终极防吞换行 + 安全保护补丁！（从 Post 完美移植）
-  // ==========================================
-
-  // 1. 基础物理清洗：统一换行符，干掉幽灵占位符和纯空格废行
-  content = content.replace(/\r\n/g, '\n');
-  content = content.replace(/[\u200B-\u200D\uFEFF]/g, '');
-  content = content.replace(/^[ \t]+$/gm, '');
-
-  // 2. 强行修复数字列表缺少空格导致无法渲染为列表的 Bug (1.百度 -> 1. 百度)
-  content = content.replace(/^(\s*\d+)\.([^ \n])/gm, '$1. $2');
-
-  // 3. 🌟 空间隔离防吞换行阵法（绝对不伤代码块！）
-  const blocks = content.split(/(```[\s\S]*?```|~~~[\s\S]*?~~~)/g);
-  content = blocks.map((block, index) => {
-    // 奇数索引是代码块
-    if (index % 2 === 1) {
-      // 🌟 安全注入：如果代码块没写明语言，只在开头安全补上 cpp，绝不破坏结尾！
-      if (/^```[ \t]*(\n|$)/.test(block)) {
-         return block.replace(/^```[ \t]*/, '```cpp');
-      }
-      return block;
-    }
-
-    // 偶数索引是正文。把 3 个以上的连续 \n 替换为真实的 <br> 标签。
-    // （3 个 \n 相当于中间空了 1 行真正的空白）
-    return block.replace(/\n{3,}/g, (match) => {
-      const brCount = match.length - 2;
-      return '\n\n' + '<br>'.repeat(brCount) + '\n\n';
-    });
-  }).join('');
-
-  // ==========================================
-
-  const processedContent = await unified()
-    .use(remarkParse)
-    .use(remarkGfm)
-    .use(remarkMath)
-    .use(remarkRehype, { allowDangerousHtml: true })
-    // @ts-ignore
-    .use(rehypeHighlight, {
-      detect: true,
-      ignoreMissing: true,
-      subset: ['cpp', 'c', 'python', 'java', 'javascript', 'typescript', 'go', 'rust', 'bash', 'json', 'html', 'css', 'sql', 'xml']
-    })
-    .use(rehypeKatex)
-    .use(rehypeStringify, { allowDangerousHtml: true })
-    .process(content);
-
-  return {
-    slug,
-    contentHtml: processedContent.toString(),
-    title: data.title || '碎片记录',
-    date: data.date,
-    mood: data.mood,
-    tags: data.tags && Array.isArray(data.tags) ? data.tags : [],
-    cover: data.cover || siteConfig.defaultPostCover
-  };
-}
-
-function getRecentChatters(currentSlug: string) {
-  const chattersDirectory = path.join(process.cwd(), 'chatters');
-  let fileNames: string[] = [];
-  try { fileNames = fs.readdirSync(chattersDirectory).filter(f => f.endsWith('.md')); } catch(e) {}
-  if (!fileNames) return [];
-
-  return fileNames.map(f => {
-    const s = f.replace(/\.md$/, '');
-    const c = fs.readFileSync(path.join(chattersDirectory, f), 'utf8');
-    const { data } = matter(c);
-    return { slug: s, title: data.title || '碎片记录', date: data.date || '1970-01-01' };
-  }).filter(p => p.slug !== currentSlug)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 3);
-}
+import { getArticle, getArticles, getSiteSettings } from '../../../lib/public-api';
 
 function generateCalendarMatrix(year: number, month: number, targetDay: number) {
   const firstDayOfMonth = new Date(year, month - 1, 1).getDay();
@@ -128,11 +23,32 @@ function generateCalendarMatrix(year: number, month: number, targetDay: number) 
 }
 
 export default async function ChatterDetail({ params }: { params: Promise<{ slug: string }> }) {
-  const resolvedParams = await params;
-  const chatterData = await getChatterData(resolvedParams.slug);
-  const recentChatters = getRecentChatters(resolvedParams.slug);
+  const { slug } = await params;
+  const [article, chatterList, settings] = await Promise.all([
+    getArticle(slug),
+    getArticles('chatter', 4),
+    getSiteSettings(),
+  ]);
+  if (!article || article.kind !== 'chatter') notFound();
+  const chatterData = {
+    slug: article.slug,
+    contentHtml: article.renderedHtml,
+    title: article.title || '碎片记录',
+    date: article.publishedAt || article.createdAt,
+    mood: article.mood,
+    tags: article.tags,
+    cover: article.coverUrl || settings.defaultPostCoverUrl,
+  };
+  const recentChatters = chatterList.items
+    .filter((item) => item.slug !== slug)
+    .slice(0, 3)
+    .map((item) => ({
+      slug: item.slug,
+      title: item.title || '碎片记录',
+      date: item.publishedAt || item.createdAt,
+    }));
 
-  const dateObj = new Date(chatterData.date || '2026-03-24');
+  const dateObj = new Date(chatterData.date);
   const yearStr = dateObj.getFullYear();
   const monthNum = dateObj.getMonth() + 1;
   const dayNum = dateObj.getDate();
@@ -289,10 +205,10 @@ export default async function ChatterDetail({ params }: { params: Promise<{ slug
           <aside className="w-full lg:w-[320px] flex flex-col gap-6 flex-shrink-0">
             <div className="bg-white/60 dark:bg-slate-800/50 backdrop-blur-xl rounded-3xl p-6 border border-white/40 dark:border-white/10 shadow-xl text-center">
               <div className="w-20 h-20 mx-auto rounded-full p-1 bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-md mb-4 hover:rotate-3 transition-transform">
-                <img src={siteConfig.avatarUrl} alt="avatar" className="w-full h-full rounded-full object-cover bg-white" />
+                <img src={settings.avatarUrl} alt="avatar" className="w-full h-full rounded-full object-cover bg-white" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{siteConfig.authorName}</h3>
-              <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium mb-4">{siteConfig.bio}</p>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{settings.authorName}</h3>
+              <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium mb-4">{settings.bio}</p>
               <ClientSocials />
             </div>
 

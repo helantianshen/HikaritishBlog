@@ -1,133 +1,45 @@
-import fs from 'fs';
-import path from 'path';
-import matter from 'gray-matter';
 import Link from 'next/link';
-
-import { unified } from 'unified';
-import remarkParse from 'remark-parse';
-import remarkGfm from 'remark-gfm'; // 🌟 核心引入：支持删除线和表格等 GFM 语法
-import remarkRehype from 'remark-rehype';
-import rehypeHighlight from 'rehype-highlight';
-import rehypeStringify from 'rehype-stringify';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
+import { notFound } from 'next/navigation';
 
 // 引入高亮主题
 import 'highlight.js/styles/atom-one-dark.css';
 
 import Navbar from '../../../components/Navbar';
 import PageTransition from '../../../components/PageTransition';
-import { siteConfig } from '../../../siteConfig';
 import ClientSocials from '../../../components/ClientSocials';
 import ClientTOC from '../../../components/ClientTOC';
 import BackButton from '../../../components/BackButton';
 import Comments from '../../../components/Comments';
 import SidebarLyric from '../../../components/SidebarLyric';
-
-export async function generateStaticParams() {
-  const postsDirectory = path.join(process.cwd(), 'posts');
-  if (!fs.existsSync(postsDirectory)) return [];
-
-  const filenames = fs.readdirSync(postsDirectory);
-
-  return filenames
-    .filter((name) => name.endsWith('.md'))
-    .map((name) => ({
-      slug: name.replace(/\.md$/, ''),
-    }));
-}
-
-function extractToc(content: string) {
-  const headingRegex = /^(#{1,3})\s+(.+)$/gm;
-  const toc = [];
-  let match;
-  while ((match = headingRegex.exec(content)) !== null) {
-    toc.push({
-      level: match[1].length,
-      text: match[2].trim(),
-      id: match[2].trim().toLowerCase().replace(/\s+/g, '-')
-    });
-  }
-  return toc;
-}
-
-async function getPostData(slug: string) {
-  const fullPath = path.join(process.cwd(), 'posts', `${slug}.md`);
-  const fileContents = fs.readFileSync(fullPath, 'utf8');
-  let { data, content } = matter(fileContents);
-
-  // ==========================================
-  // 🌟 前台渲染清洗区：终极防吞换行补丁！
-  // ==========================================
-
-  // 1. 强行修复数字列表缺少空格导致无法渲染为列表的 Bug (1.百度 -> 1. 百度)
-  content = content.replace(/^(\s*\d+)\.([^ \n])/gm, '$1. $2');
-
-  // 2. 🌟 拯救被 Markdown 引擎吞噬的“连续空行”！
-  // 统一换行符，并清理纯空格的废弃空行
-  content = content.replace(/\r\n/g, '\n').replace(/^[ \t]+$/gm, '');
-
-  // 将代码块切开保护，只处理正文的连续空行！
-  const blocks = content.split(/(```[\s\S]*?```)/g);
-  content = blocks.map((block, index) => {
-    // 奇数索引是代码块，原样返回，绝对不碰！
-    if (index % 2 === 1) return block;
-
-    // 偶数索引是正文。把 3 个以上的连续 \n 替换为真实的 <br/> 标签。
-    // （3 个 \n 相当于中间空了 1 行真正的空白）
-    return block.replace(/\n{3,}/g, (match) => {
-      const brCount = match.length - 2;
-      return '\n\n' + '<br/>'.repeat(brCount) + '\n\n';
-    });
-  }).join('');
-
-  // ==========================================
-
-  const processedContent = await unified()
-    .use(remarkParse)
-    .use(remarkGfm)
-    .use(remarkMath)
-    // 🌟 allowDangerousHtml 必须开启，这样上面生成的 <br/> 才能顺利通过变成真正的换行！
-    .use(remarkRehype, { allowDangerousHtml: true })
-    // 🌟 核心升级：开启代码语言自动侦测，并限制白名单，大幅提高 C++ 和常用语言的猜中率！
-    // @ts-ignore
-    .use(rehypeHighlight, {
-      detect: true,
-      ignoreMissing: true,
-      subset: ['cpp', 'c', 'python', 'java', 'javascript', 'typescript', 'go', 'rust', 'bash', 'json', 'html', 'css', 'sql', 'xml']
-    })
-    .use(rehypeKatex)
-    .use(rehypeStringify, { allowDangerousHtml: true })
-    .process(content);
-
-  return {
-    slug,
-    contentHtml: processedContent.toString(),
-    toc: extractToc(content),
-    title: data.title,
-    date: data.date,
-    tags: data.tags && Array.isArray(data.tags) ? data.tags : [],
-    cover: data.cover || siteConfig.defaultPostCover
-  };
-}
-
-function getRecentPosts(currentSlug: string) {
-  const postsDirectory = path.join(process.cwd(), 'posts');
-  let fileNames: string[] = [];
-  try { fileNames = fs.readdirSync(postsDirectory).filter(f => f.endsWith('.md')); } catch(e) {}
-  if (!fileNames) return [];
-  return fileNames.map(f => {
-    const s = f.replace(/\.md$/, '');
-    const c = fs.readFileSync(path.join(postsDirectory, f), 'utf8');
-    const { data } = matter(c);
-    return { slug: s, title: data.title || '无标题', date: data.date };
-  }).filter(p => p.slug !== currentSlug).slice(0, 3);
-}
+import { addHeadingIDs } from '../../../lib/article-html';
+import { getArticle, getArticles, getSiteSettings } from '../../../lib/public-api';
 
 export default async function Post({ params }: { params: Promise<{ slug: string }> }) {
-  const resolvedParams = await params;
-  const postData = await getPostData(resolvedParams.slug);
-  const recentPosts = getRecentPosts(resolvedParams.slug);
+  const { slug } = await params;
+  const [article, postList, settings] = await Promise.all([
+    getArticle(slug),
+    getArticles('post', 4),
+    getSiteSettings(),
+  ]);
+  if (!article || article.kind !== 'post') notFound();
+  const parsedContent = addHeadingIDs(article.renderedHtml);
+  const postData = {
+    slug: article.slug,
+    contentHtml: parsedContent.contentHtml,
+    toc: parsedContent.toc,
+    title: article.title,
+    date: article.publishedAt || article.createdAt,
+    tags: article.tags,
+    cover: article.coverUrl || settings.defaultPostCoverUrl || '/window.svg',
+  };
+  const recentPosts = postList.items
+    .filter((item) => item.slug !== slug)
+    .slice(0, 3)
+    .map((item) => ({
+      slug: item.slug,
+      title: item.title || '无标题',
+      date: item.publishedAt || item.createdAt,
+    }));
 
   return (
     <div className="min-h-screen relative pb-20">
@@ -270,10 +182,10 @@ export default async function Post({ params }: { params: Promise<{ slug: string 
           <aside className="w-full lg:w-[320px] flex flex-col gap-6 flex-shrink-0">
             <div className="bg-white/60 dark:bg-slate-800/50 backdrop-blur-xl rounded-3xl p-6 border border-white/40 dark:border-white/10 shadow-xl text-center">
               <div className="w-20 h-20 mx-auto rounded-full p-1 bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-md mb-4 transition-transform duration-500 hover:rotate-3">
-                <img src={siteConfig.avatarUrl} alt="avatar" className="w-full h-full rounded-full object-cover bg-white" />
+                <img src={settings.avatarUrl} alt="avatar" className="w-full h-full rounded-full object-cover bg-white" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{siteConfig.authorName}</h3>
-              <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium mb-4">{siteConfig.bio}</p>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{settings.authorName}</h3>
+              <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium mb-4">{settings.bio}</p>
               <ClientSocials />
             </div>
 

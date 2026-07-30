@@ -2,6 +2,11 @@
 
 import { useEffect, useState, useMemo } from "react";
 
+function seededRandom(seed: number) {
+  const value = Math.sin(seed) * 10000;
+  return value - Math.floor(value);
+}
+
 export default function GlobalSnow() {
   const [isWinter, setIsWinter] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -33,13 +38,13 @@ export default function GlobalSnow() {
 
   const snowParticles = useMemo(() => {
     const types = ["❄", "❅", "❆"];
-    return Array.from({ length: 40 }).map(() => ({
-      char: types[Math.floor(Math.random() * types.length)],
-      size: Math.random() * 15 + 10,
-      left: Math.random() * 100,
-      duration: Math.random() * 6 + 4,
-      delay: Math.random() * 5,
-      opacity: Math.random() * 0.5 + 0.3,
+    return Array.from({ length: 40 }).map((_, index) => ({
+      char: types[Math.floor(seededRandom(index + 1) * types.length)],
+      size: seededRandom(index + 101) * 15 + 10,
+      left: seededRandom(index + 211) * 100,
+      duration: seededRandom(index + 307) * 6 + 4,
+      delay: seededRandom(index + 401) * 5,
+      opacity: seededRandom(index + 503) * 0.5 + 0.3,
     }));
   }, []);
 

@@ -2,17 +2,13 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-// 🌟 引入了新的图标 Camera, Users, Sprout
-import { MessageCircleHeart, ChevronLeft, ChevronRight, BookOpen, ScrollText, Coffee, FileText, Sparkles, Award, Shield, X, Grid, LockKeyhole, Camera, Users, Sprout } from 'lucide-react';
+import { MessageCircleHeart, ChevronLeft, ChevronRight, BookOpen, ScrollText, Coffee, FileText, Sparkles, Award, Shield, X, Grid, LockKeyhole, Camera, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 // 🌟 引入定制的无干扰留言板组件与站点配置
 import LabComments from '../../components/LabComments';
-import { siteConfig } from '../../siteConfig';
-
-// 🌟 引入相册与友链数据以统计徽章 (请确保路径正确，如果报错请调整 ../ 的数量)
-import { albums } from '../../data/albums';
-import { friendsData } from '../../data/friends';
+import { useLegacySiteConfig } from '../../components/SiteSettingsProvider';
+import type { Album, Friend } from '../../lib/types';
 
 function seededRandom(seed: number) {
   const x = Math.sin(seed) * 10000;
@@ -179,7 +175,20 @@ const StickyNote = ({ note }: { note: any }) => {
 // ==========================================
 // 🌟 4. 核心实验室组件 (完全体)
 // ==========================================
-export default function AlchemyLab({ posts = [], chatters = [], moments = [] }: any) {
+export default function AlchemyLab({
+  posts = [],
+  chatters = [],
+  moments = [],
+  albums = [],
+  friends = [],
+}: {
+  posts?: any[];
+  chatters?: any[];
+  moments?: any[];
+  albums?: Album[];
+  friends?: Friend[];
+}) {
+  const siteConfig = useLegacySiteConfig();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -196,14 +205,14 @@ export default function AlchemyLab({ posts = [], chatters = [], moments = [] }: 
 
     // 统计照片与友链 (纯发徽章，不加经验)
     const totalPhotos = (albums || []).reduce((acc: number, curr: any) => acc + (curr.photos?.length || 0), 0);
-    const totalFriends = (friendsData || []).length;
+    const totalFriends = friends.length;
 
     const parseDateStr = (dateVal: any) => {
       try {
         const d = new Date(dateVal);
         if (isNaN(d.getTime())) return null;
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      } catch (e) { return null; }
+      } catch { return null; }
     };
 
     const todayString = parseDateStr(new Date());
@@ -339,7 +348,7 @@ export default function AlchemyLab({ posts = [], chatters = [], moments = [] }: 
       todayPosts: tp, todayChatters: tc, todayMoments: tm,
       ownedBadges, allCatalogBadges, ownedIds, totalPhotos, totalFriends
     };
-  }, [posts, chatters, moments]);
+  }, [posts, chatters, moments, albums, friends, siteConfig.enableLevelSystem]);
 
   const availableMonths = useMemo(() => {
     const allItems = [...posts, ...chatters, ...moments];
@@ -358,13 +367,18 @@ export default function AlchemyLab({ posts = [], chatters = [], moments = [] }: 
   const formattedMonth = `${year} 卷${cnMonths[parseInt(month)] || month}`;
 
   useEffect(() => {
-    if (!mounted) return;
+    const { enabled, owner, repo } = siteConfig.gitalkConfig;
+    if (!mounted || !enabled || !owner || !repo) {
+      setRealWishes([]);
+      return;
+    }
     let isMounted = true;
     const fetchGitalkComments = async () => {
       try {
-        const { owner, repo } = siteConfig.gitalkConfig;
         const targetLabel = `workshop-${currentMonthStr}`;
-        const issueRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues?labels=${targetLabel}`);
+        const issueRes = await fetch(
+          `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?labels=${encodeURIComponent(targetLabel)}`,
+        );
         const issues = await issueRes.json();
         if (issues && issues.length > 0) {
           const commentsRes = await fetch(issues[0].comments_url);
@@ -375,11 +389,11 @@ export default function AlchemyLab({ posts = [], chatters = [], moments = [] }: 
           }
         }
         if (isMounted) setRealWishes([]);
-      } catch (err) { if (isMounted) setRealWishes([]); }
+      } catch { if (isMounted) setRealWishes([]); }
     };
     fetchGitalkComments();
     return () => { isMounted = false; };
-  }, [currentMonthStr, mounted]);
+  }, [currentMonthStr, mounted, siteConfig.gitalkConfig]);
 
   const { shelvesData, stickyNotes, stats } = useMemo(() => {
     if (!mounted) return { shelvesData: [], stickyNotes: [], stats: { post: 0, chatter: 0, moment: 0, wish: 0 } };

@@ -1,0 +1,26 @@
+# 把真实局域网 CIDR 填好后，将以下两个 location 放在 blog.conf 的 location / 之前。
+# 现在不启用，避免猜测你的网段。
+
+location ^~ /admin {
+    allow 192.0.2.0/24;
+    deny all;
+
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location ^~ /api/v1/admin/ {
+    allow 192.0.2.0/24;
+    deny all;
+
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}

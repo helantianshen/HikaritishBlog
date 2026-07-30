@@ -3,22 +3,22 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BackButton from '../../components/BackButton'; // 注意层级路径
-import { projectsData } from '../../data/projects';
+import type { Project } from '../../lib/types';
 
-export default function ProjectsBoard() {
+export default function ProjectsBoard({ projects }: { projects: Project[] }) {
   const [searchQuery, setSearchQuery] = useState("");
 
   // 搜索过滤逻辑
   const filteredProjects = useMemo(() => {
-    if (searchQuery.trim() === "") return projectsData;
+    if (searchQuery.trim() === "") return projects;
     const query = searchQuery.trim().toLowerCase();
 
-    return projectsData.filter(project =>
+    return projects.filter(project =>
       project.name.toLowerCase().includes(query) ||
       project.description.toLowerCase().includes(query) ||
       project.tags.some(tag => tag.toLowerCase().includes(query))
     );
-  }, [searchQuery]);
+  }, [projects, searchQuery]);
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-10 py-10 relative z-10">
@@ -68,7 +68,7 @@ export default function ProjectsBoard() {
               className="h-full"
             >
               <a
-                href={project.githubUrl}
+                href={project.repoUrl || project.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block h-full rounded-3xl bg-white/60 dark:bg-slate-800/50 backdrop-blur-xl border border-white/40 dark:border-white/10 shadow-xl overflow-hidden hover:shadow-indigo-500/20 transition-all duration-700 hover:-translate-y-1 group relative p-6 md:p-8"

@@ -1,10 +1,13 @@
-import { siteConfig } from "@/siteConfig";
+import type { Metadata } from "next";
+import { getSiteSettings } from "@/lib/public-api";
 import MusicClient from "./MusicClient";
 
-// 🌟 这里是服务端渲染，完美支持 metadata
-export const metadata = {
-  title: "音乐馆 | " + siteConfig.title,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSiteSettings();
+  return {
+    title: `音乐馆 | ${settings.siteTitle}`,
+  };
+}
 
 export default function MusicPage() {
   return <MusicClient />;

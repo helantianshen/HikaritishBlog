@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSiteSettings } from './SiteSettingsProvider';
 
 export default function CyberCat() {
+  const { assistant } = useSiteSettings();
   const [isPetted, setIsPetted] = useState(false);
   const [speech, setSpeech] = useState<string | null>(null);
   const [showInput, setShowInput] = useState(false);
@@ -51,7 +53,7 @@ export default function CyberCat() {
 
       const data = await res.json();
       speak(data.reply, 8000);
-    } catch (error) {
+    } catch {
       speak("吧唧吧唧... 鱼干好吃，但本喵卡壳了喵...", 4000);
     } finally {
       setIsThinking(false);
@@ -80,7 +82,7 @@ export default function CyberCat() {
 
       const data = await res.json();
       speak(data.reply, 8000);
-    } catch (error) {
+    } catch {
       speak("铲屎官的网线被老鼠咬断了吧？喵！", 4000);
     } finally {
       setIsThinking(false);
@@ -89,6 +91,7 @@ export default function CyberCat() {
 
   // --- ⏳ 随机挂机语录 ---
   useEffect(() => {
+    if (!assistant.enabled) return;
     const randomBarks = [
       "喵呜~ 今天天气真不错喵~",
       "好困哦，想睡觉喵...",
@@ -104,8 +107,9 @@ export default function CyberCat() {
     }, 20000);
 
     return () => clearInterval(randomTalkInterval);
-  }, [speech, showInput, isThinking]);
+  }, [assistant.enabled, speech, showInput, isThinking]);
 
+  if (!assistant.enabled) return null;
 
   return (
     <motion.div

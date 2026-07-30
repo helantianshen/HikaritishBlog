@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, RefreshCcw, ListMusic, Mic2, Disc3, Volume2, VolumeX, Search, X, MessageSquare } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, RefreshCcw, Disc3, Volume2, VolumeX, Search, X, MessageSquare } from 'lucide-react';
 import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
 import { useMusic } from '../../components/MusicProvider';
@@ -12,7 +12,7 @@ export default function MusicClient() {
   const {
     playlist, currentSong, isPlaying, progress, currentTime, duration, currentLyric,
     isLoading, togglePlay, nextSong, prevSong, handleSeek,
-    playSong, selectSong,
+    playSong,
     playMode, togglePlayMode,
     volume, setVolume, isMuted, toggleMute
   } = useMusic();
@@ -67,7 +67,7 @@ export default function MusicClient() {
     } else {
       setParsedLyrics(lines.map(l => ({ time: -1, text: l.trim() })).filter(l => l.text));
     }
-  }, [currentSong?.id, currentSong?.lyric, currentSong?.lrc, currentSong?.lyrics]);
+  }, [currentSong]);
 
   const activeLyricIndex = useMemo(() => {
     if (!parsedLyrics.length) return -1;
@@ -102,8 +102,7 @@ export default function MusicClient() {
   };
 
   const handlePlaySong = (index: number) => {
-    if (typeof playSong === 'function') playSong(index);
-    else if (typeof selectSong === 'function') selectSong(index);
+    playSong(index);
   };
 
   const filteredPlaylist = useMemo(() => {
@@ -127,7 +126,7 @@ export default function MusicClient() {
     );
   }
 
-  const songCover = currentSong.cover || currentSong.pic || "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=1000&auto=format&fit=crop";
+  const songCover = currentSong.cover || currentSong.pic || "/window.svg";
 
   return (
     <div className="min-h-screen relative pb-10 flex flex-col">

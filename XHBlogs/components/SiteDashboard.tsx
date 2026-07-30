@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-// 🌟 引入咱们的控制中心配置
-import { siteConfig } from '../siteConfig';
+import { useLegacySiteConfig } from './SiteSettingsProvider';
 
 export default function SiteDashboard() {
+  const siteConfig = useLegacySiteConfig();
   const [timeStr, setTimeStr] = useState('');
   const [uptimeStr, setUptimeStr] = useState('');
 
   // 🌟 从配置中读取建站时间
-  const START_DATE = new Date(siteConfig.buildDate || '2026-03-23T00:00:00').getTime();
+  const START_DATE = siteConfig.buildDate
+    ? new Date(siteConfig.buildDate).getTime()
+    : null;
 
   useEffect(() => {
     const updateTime = () => {
@@ -18,10 +20,14 @@ export default function SiteDashboard() {
       setTimeStr(now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }));
 
       // 计算运行时间
-      const diff = now.getTime() - START_DATE;
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-      setUptimeStr(`${days}天 ${hours}小时`);
+      if (START_DATE !== null && Number.isFinite(START_DATE)) {
+        const diff = Math.max(0, now.getTime() - START_DATE);
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+        setUptimeStr(`${days}天 ${hours}小时`);
+      } else {
+        setUptimeStr("未设置建站日期");
+      }
     };
 
     updateTime(); // 初始执行一次
@@ -53,13 +59,16 @@ export default function SiteDashboard() {
         {/* 技术栈徽章 (🌟 动态映射 siteConfig 里的数组) */}
         <div className="flex gap-2">
           {siteConfig.footerBadges?.map((badge, index) => (
-            <span
+            <a
               key={index}
+              href={badge.url || undefined}
+              target={badge.url ? "_blank" : undefined}
+              rel={badge.url ? "noopener noreferrer" : undefined}
               className="px-2 py-1 bg-white/50 dark:bg-slate-700/50 rounded-md shadow-sm flex items-center gap-1 border border-white/40 dark:border-slate-600"
             >
-              <svg className={`w-3.5 h-3.5 ${badge.color}`} fill="currentColor" viewBox="0 0 24 24" dangerouslySetInnerHTML={{ __html: badge.svg }} />
-              {badge.name}
-            </span>
+              {badge.image && <img src={badge.image} alt="" className="w-3.5 h-3.5 object-contain" />}
+              {badge.label}
+            </a>
           ))}
         </div>
 

@@ -1,58 +1,34 @@
-import fs from 'fs';
-import path from 'path';
-import matter from 'gray-matter';
+import type { Metadata } from 'next';
 import Navbar from '../../components/Navbar';
 import PageTransition from '../../components/PageTransition';
-import { siteConfig } from '../../siteConfig';
 import TimelineClient from '../../components/TimelineClient';
-// 🌟 1. 引入 ToastProvider 喵！
 import { ToastProvider } from '../../components/ToastProvider';
+import { getArticles, getSiteSettings } from '../../lib/public-api';
 
-export const metadata = {
-  title: "归档与探索 | " + siteConfig.title,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSiteSettings();
+  return { title: `归档与探索 | ${settings.siteTitle}` };
+}
 
-export default function Timeline() {
-  const postsDirectory = path.join(process.cwd(), 'posts');
-  let posts: any[] = [];
-  let tagCounts: Record<string, number> = {};
-
-  try {
-    if (fs.existsSync(postsDirectory)) {
-      const fileNames = fs.readdirSync(postsDirectory).filter(f => f.endsWith('.md'));
-
-      fileNames.forEach(fileName => {
-        const slug = fileName.replace(/\.md$/, '');
-        const fullPath = path.join(postsDirectory, fileName);
-
-        const fileContents = fs.readFileSync(fullPath, 'utf8');
-        const { data } = matter(fileContents);
-
-        const postTags = data.tags && Array.isArray(data.tags) ? data.tags : ['未分类'];
-
-        postTags.forEach(tag => {
-          tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-        });
-
-        posts.push({
-          slug,
-          title: data.title || '无标题',
-          date: data.date || '1970-01-01',
-          description: data.description || '',
-          tags: postTags,
-          cover: data.cover || siteConfig.defaultPostCover,
-        });
-      });
-
-      posts.sort((a, b) => {
-        const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
-        return dateDiff !== 0 ? dateDiff : b.slug.localeCompare(a.slug);
-      });
-    }
-  } catch(e) {
-    console.error("读取文章列表失败", e);
-  }
-
+export default async function Timeline() {
+  const [result, settings] = await Promise.all([
+    getArticles('post'),
+    getSiteSettings(),
+  ]);
+  const posts = result.items.map((article) => ({
+    slug: article.slug,
+    title: article.title || '无标题',
+    date: article.publishedAt || article.createdAt,
+    description: article.summary,
+    tags: article.tags.length > 0 ? article.tags : ['未分类'],
+    cover: article.coverUrl || settings.defaultPostCoverUrl || '/window.svg',
+  }));
+  const tagCounts: Record<string, number> = {};
+  posts.forEach((post) => {
+    post.tags.forEach((tag) => {
+      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+    });
+  });
   const tagsArray = Object.keys(tagCounts)
     .map(name => ({ name, count: tagCounts[name] }))
     .sort((a, b) => b.count - a.count);
