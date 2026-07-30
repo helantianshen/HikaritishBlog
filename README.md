@@ -99,15 +99,14 @@ npm run build
 
 完整说明见 [deploy/README.md](deploy/README.md)，其中包含：
 
-- 环境变量模板
-- PostgreSQL/GORM 启动约束
-- RustFS CORS 示例
-- standalone 构建脚本
-- 两个 `screen` 会话的启动/停止脚本
-- Nginx 配置
-- 后续限制 `/admin` 与管理 API 局域网网段的位置
+- 单一 `deploy/app.env` 配置
+- 自动生成并复用管理令牌
+- 一键构建 `dist/` 与 `dist.tar.gz`
+- 可直接上传运行的 Gin 二进制和 Next.js standalone
+- RustFS bucket/CORS/公开读取初始化脚本
+- 两个 `screen` 会话与 Nginx 配置
 
-当前不会猜测你的局域网 CIDR。生产环境至少必须配置长随机 `ADMIN_TOKEN`，并让 Gin/Next 只监听回环地址。
+服务器只需安装 Node.js、`screen` 与 Nginx，不需要保留源码、Go 或 npm。
 
 ## 设计说明
 

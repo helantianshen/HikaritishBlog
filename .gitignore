@@ -7,6 +7,8 @@ node_modules/
 .next/
 out/
 dist/
+/dist.tar.gz
+/.dist-build.*
 build/
 coverage/
 *.tsbuildinfo
