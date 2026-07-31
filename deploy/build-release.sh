@@ -69,9 +69,6 @@ install -m 755 \
   "${project_root}/deploy/run-web.sh" \
   "${project_root}/deploy/show-admin-token.sh" \
   "${staging_dir}/deploy/"
-install -m 644 \
-  "${project_root}/deploy/rustfs-cors.json" \
-  "${staging_dir}/deploy/rustfs-cors.json"
 cp -a "${project_root}/deploy/nginx/." "${staging_dir}/deploy/nginx/"
 
 rm -rf "${release_dir}" "${release_archive}"

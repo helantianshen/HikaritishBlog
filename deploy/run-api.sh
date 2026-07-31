@@ -28,6 +28,9 @@ export HTTP_ADDR="${HTTP_ADDR:-127.0.0.1:8080}"
 export SHUTDOWN_TIMEOUT="${SHUTDOWN_TIMEOUT:-10s}"
 export CORS_ORIGINS="${CORS_ORIGINS:-}"
 export RUSTFS_ENDPOINT="${RUSTFS_ENDPOINT:-https://oss.guyuan-v.top}"
+if [[ "${1:-}" == "init-storage" ]]; then
+  export RUSTFS_ENDPOINT="${RUSTFS_ADMIN_ENDPOINT:-http://127.0.0.1:9000}"
+fi
 export RUSTFS_REGION="${RUSTFS_REGION:-us-east-1}"
 export RUSTFS_BUCKET="${RUSTFS_BUCKET:-blog-images}"
 export RUSTFS_PUBLIC_BASE_URL="${RUSTFS_PUBLIC_BASE_URL:-${RUSTFS_ENDPOINT%/}/${RUSTFS_BUCKET}}"
@@ -63,4 +66,4 @@ if (( ${#configured_admin_token} < 32 )); then
   export ADMIN_TOKEN="${generated_token}"
 fi
 
-exec "${api_bin}"
+exec "${api_bin}" "$@"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime"
@@ -17,6 +18,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 var (
@@ -75,6 +77,80 @@ func NewRustFS(ctx context.Context, cfg config.RustFSConfig) (*RustFS, error) {
 
 func (s *RustFS) Enabled() bool {
 	return s != nil && s.client != nil && s.presigner != nil
+}
+
+// EnsureBucket creates the configured bucket when it is missing, then applies
+// the upload CORS rule and anonymous object-read policy. It never lists,
+// deletes, or writes objects, so it is safe to run again after deployment.
+func (s *RustFS) EnsureBucket(ctx context.Context) error {
+	if !s.Enabled() {
+		return ErrDisabled
+	}
+
+	_, headErr := s.client.HeadBucket(ctx, &s3.HeadBucketInput{
+		Bucket: aws.String(s.config.Bucket),
+	})
+	if headErr != nil {
+		_, createErr := s.client.CreateBucket(ctx, &s3.CreateBucketInput{
+			Bucket: aws.String(s.config.Bucket),
+		})
+		if createErr != nil {
+			// A concurrent initializer may have created the bucket after the
+			// first check. Confirm it exists before returning an error.
+			if _, retryErr := s.client.HeadBucket(ctx, &s3.HeadBucketInput{
+				Bucket: aws.String(s.config.Bucket),
+			}); retryErr != nil {
+				return fmt.Errorf(
+					"ensure rustfs bucket: inspect failed: %v; create failed: %w",
+					headErr,
+					createErr,
+				)
+			}
+		}
+	}
+
+	maxAgeSeconds := int32(3600)
+	_, err := s.client.PutBucketCors(ctx, &s3.PutBucketCorsInput{
+		Bucket: aws.String(s.config.Bucket),
+		CORSConfiguration: &types.CORSConfiguration{
+			CORSRules: []types.CORSRule{
+				{
+					AllowedHeaders: []string{"*"},
+					AllowedMethods: []string{"GET", "HEAD", "PUT"},
+					AllowedOrigins: []string{"*"},
+					ExposeHeaders:  []string{"ETag"},
+					MaxAgeSeconds:  &maxAgeSeconds,
+				},
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("configure rustfs bucket CORS: %w", err)
+	}
+
+	policy, err := json.Marshal(map[string]any{
+		"Version": "2012-10-17",
+		"Statement": []map[string]any{
+			{
+				"Effect":    "Allow",
+				"Principal": "*",
+				"Action":    []string{"s3:GetObject"},
+				"Resource":  []string{"arn:aws:s3:::" + s.config.Bucket + "/*"},
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("build rustfs bucket policy: %w", err)
+	}
+	_, err = s.client.PutBucketPolicy(ctx, &s3.PutBucketPolicyInput{
+		Bucket: aws.String(s.config.Bucket),
+		Policy: aws.String(string(policy)),
+	})
+	if err != nil {
+		return fmt.Errorf("configure rustfs bucket policy: %w", err)
+	}
+
+	return nil
 }
 
 func (s *RustFS) PresignImage(

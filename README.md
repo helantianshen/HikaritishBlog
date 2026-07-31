@@ -5,7 +5,7 @@
 - `XHBlogs`：Next.js 公开站点与 `/admin` 管理后台。
 - `server`：Gin HTTP API、GORM 与 PostgreSQL。
 - RustFS：保存新上传的图片。
-- Nginx：自有服务器统一入口。
+- 1Panel/OpenResty：自有服务器统一入口。
 
 文章和站点配置保存在 PostgreSQL。管理端保存或发布后，公开页面刷新即读取最新数据，不需要重新构建，不使用 WebSocket/SSE，也不再依赖 Python CMS、双目录同步、Git 推送或 Vercel 构建。
 
@@ -15,7 +15,7 @@
 浏览器
   │
   ▼
-Nginx :80/:443
+OpenResty :80/:443
   │
   ▼
 Next.js :3000 ──HTTP──▶ Gin :8080 ──GORM──▶ PostgreSQL
@@ -104,9 +104,10 @@ npm run build
 - 一键构建 `dist/` 与 `dist.tar.gz`
 - 可直接上传运行的 Gin 二进制和 Next.js standalone
 - RustFS bucket/CORS/公开读取初始化脚本
-- 两个 `screen` 会话与 Nginx 配置
+- 两个 `screen` 会话与 1Panel/OpenResty 配置说明
 
-服务器只需安装 Node.js、`screen` 与 Nginx，不需要保留源码、Go 或 npm。
+服务器只需准备 Node.js、`screen` 和 1Panel 已有的 OpenResty，不需要保留源码、
+Go、npm 或 AWS CLI。
 
 ## 设计说明
 
