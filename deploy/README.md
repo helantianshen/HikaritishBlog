@@ -121,14 +121,13 @@ curl -I http://127.0.0.1:9000/
 先确保 `oss.guyuan-v.top` 的 DNS 已指向这台服务器。在该网站的 OpenResty 配置中：
 
 - 在 `server` 块中设置 `client_max_body_size 12m;`
-- 在已有的 `location /` 中设置 `proxy_request_buffering off;`
-- 确认已有 `proxy_set_header Host $host;` 或等价的
-  `proxy_set_header Host $http_host;`
-- 可设置 `proxy_read_timeout 60s;`
+- 保留 1Panel 自动生成的反向代理内容
+- 确认其中只有一条 `proxy_set_header Host $host;`
 
 不要重复创建第二个 `location /`，也不要重复添加已有的 `proxy_set_header Host`。
 `deploy/nginx/oss.conf` 仅作为配置内容参考。保留原始 Host 很重要，因为浏览器上传
-使用的是带签名的 S3 URL。
+使用的是带签名的 S3 URL。浏览器的预签名上传使用公网 OSS 域名；Gin 对图片的校验
+和删除则通过本机 `127.0.0.1:9000` 完成，不会绕行 Cloudflare。
 
 如果 1Panel 的 OpenResty 无法访问 `127.0.0.1`，再把代理地址改成服务器的宿主机或
 局域网 IP；无需在防火墙中公开 `3000`、`8080`、`9000`。

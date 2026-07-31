@@ -128,6 +128,59 @@ func TestEnsureBucketRequiresConfiguredStorage(t *testing.T) {
 	}
 }
 
+func TestRustFSUsesPublicEndpointForUploadAndInternalEndpointForInspection(t *testing.T) {
+	internalRequest := make(chan *http.Request, 1)
+	internalServer := httptest.NewServer(http.HandlerFunc(func(
+		response http.ResponseWriter,
+		request *http.Request,
+	) {
+		internalRequest <- request.Clone(context.Background())
+		response.Header().Set("Content-Type", "image/png")
+		response.Header().Set("Content-Length", "128")
+		response.WriteHeader(http.StatusOK)
+	}))
+	defer internalServer.Close()
+
+	store, err := NewRustFS(context.Background(), config.RustFSConfig{
+		Endpoint:         "https://oss.example",
+		InternalEndpoint: internalServer.URL,
+		Region:           "us-east-1",
+		AccessKey:        "test-access-key",
+		SecretKey:        "test-secret-key",
+		Bucket:           "blog-images",
+		PublicBaseURL:    "https://oss.example/blog-images",
+		UsePathStyle:     true,
+		MaxImageBytes:    10 * 1024 * 1024,
+	})
+	if err != nil {
+		t.Fatalf("NewRustFS() error = %v", err)
+	}
+
+	upload, err := store.PresignImage(context.Background(), "photo.png", "image/png", 128)
+	if err != nil {
+		t.Fatalf("PresignImage() error = %v", err)
+	}
+	if !strings.HasPrefix(upload.UploadURL, "https://oss.example/blog-images/") {
+		t.Fatalf("upload URL = %q, want public endpoint", upload.UploadURL)
+	}
+
+	info, err := store.InspectImage(context.Background(), upload.ObjectKey)
+	if err != nil {
+		t.Fatalf("InspectImage() error = %v", err)
+	}
+	if info.SizeBytes != 128 || info.MIMEType != "image/png" {
+		t.Fatalf("InspectImage() = %#v", info)
+	}
+
+	request := <-internalRequest
+	if request.Method != http.MethodHead {
+		t.Fatalf("internal request method = %q", request.Method)
+	}
+	if request.URL.Path != "/blog-images/"+upload.ObjectKey {
+		t.Fatalf("internal request path = %q", request.URL.Path)
+	}
+}
+
 func TestValidateImage(t *testing.T) {
 	tests := []struct {
 		name        string

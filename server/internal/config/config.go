@@ -20,17 +20,27 @@ type Config struct {
 }
 
 type RustFSConfig struct {
-	Endpoint      string
-	Region        string
-	AccessKey     string
-	SecretKey     string
-	Bucket        string
-	PublicBaseURL string
-	UsePathStyle  bool
-	MaxImageBytes int64
+	Endpoint         string
+	InternalEndpoint string
+	Region           string
+	AccessKey        string
+	SecretKey        string
+	Bucket           string
+	PublicBaseURL    string
+	UsePathStyle     bool
+	MaxImageBytes    int64
 }
 
 func Load() (Config, error) {
+	rustFSEndpoint := strings.TrimRight(strings.TrimSpace(os.Getenv("RUSTFS_ENDPOINT")), "/")
+	rustFSInternalEndpoint := strings.TrimRight(
+		strings.TrimSpace(os.Getenv("RUSTFS_INTERNAL_ENDPOINT")),
+		"/",
+	)
+	if rustFSInternalEndpoint == "" {
+		rustFSInternalEndpoint = rustFSEndpoint
+	}
+
 	cfg := Config{
 		Environment:     env("APP_ENV", "development"),
 		HTTPAddr:        env("HTTP_ADDR", "127.0.0.1:8080"),
@@ -39,14 +49,15 @@ func Load() (Config, error) {
 		AdminToken:      strings.TrimSpace(os.Getenv("ADMIN_TOKEN")),
 		ShutdownTimeout: durationEnv("SHUTDOWN_TIMEOUT", 10*time.Second),
 		RustFS: RustFSConfig{
-			Endpoint:      strings.TrimRight(strings.TrimSpace(os.Getenv("RUSTFS_ENDPOINT")), "/"),
-			Region:        env("RUSTFS_REGION", "us-east-1"),
-			AccessKey:     strings.TrimSpace(os.Getenv("RUSTFS_ACCESS_KEY")),
-			SecretKey:     strings.TrimSpace(os.Getenv("RUSTFS_SECRET_KEY")),
-			Bucket:        strings.TrimSpace(os.Getenv("RUSTFS_BUCKET")),
-			PublicBaseURL: strings.TrimRight(strings.TrimSpace(os.Getenv("RUSTFS_PUBLIC_BASE_URL")), "/"),
-			UsePathStyle:  boolEnv("RUSTFS_USE_PATH_STYLE", true),
-			MaxImageBytes: int64Env("MAX_IMAGE_BYTES", 10*1024*1024),
+			Endpoint:         rustFSEndpoint,
+			InternalEndpoint: rustFSInternalEndpoint,
+			Region:           env("RUSTFS_REGION", "us-east-1"),
+			AccessKey:        strings.TrimSpace(os.Getenv("RUSTFS_ACCESS_KEY")),
+			SecretKey:        strings.TrimSpace(os.Getenv("RUSTFS_SECRET_KEY")),
+			Bucket:           strings.TrimSpace(os.Getenv("RUSTFS_BUCKET")),
+			PublicBaseURL:    strings.TrimRight(strings.TrimSpace(os.Getenv("RUSTFS_PUBLIC_BASE_URL")), "/"),
+			UsePathStyle:     boolEnv("RUSTFS_USE_PATH_STYLE", true),
+			MaxImageBytes:    int64Env("MAX_IMAGE_BYTES", 10*1024*1024),
 		},
 	}
 

@@ -17,6 +17,7 @@ func TestLoadParsesRuntimeConfiguration(t *testing.T) {
 	t.Setenv("HTTP_ADDR", "127.0.0.1:9090")
 	t.Setenv("CORS_ORIGINS", "https://one.example, https://two.example")
 	t.Setenv("RUSTFS_ENDPOINT", "http://127.0.0.1:9000/")
+	t.Setenv("RUSTFS_INTERNAL_ENDPOINT", "http://10.0.0.2:9000/")
 	t.Setenv("RUSTFS_ACCESS_KEY", "access")
 	t.Setenv("RUSTFS_SECRET_KEY", "secret")
 	t.Setenv("RUSTFS_BUCKET", "images")
@@ -38,6 +39,9 @@ func TestLoadParsesRuntimeConfiguration(t *testing.T) {
 	}
 	if cfg.RustFS.Endpoint != "http://127.0.0.1:9000" {
 		t.Fatalf("RustFS endpoint = %q", cfg.RustFS.Endpoint)
+	}
+	if cfg.RustFS.InternalEndpoint != "http://10.0.0.2:9000" {
+		t.Fatalf("RustFS internal endpoint = %q", cfg.RustFS.InternalEndpoint)
 	}
 	if cfg.RustFS.MaxImageBytes != 2048 {
 		t.Fatalf("MaxImageBytes = %d", cfg.RustFS.MaxImageBytes)

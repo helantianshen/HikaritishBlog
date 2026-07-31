@@ -54,6 +54,10 @@ func NewRustFS(ctx context.Context, cfg config.RustFSConfig) (*RustFS, error) {
 	if !cfg.Enabled() {
 		return store, nil
 	}
+	internalEndpoint := strings.TrimRight(strings.TrimSpace(cfg.InternalEndpoint), "/")
+	if internalEndpoint == "" {
+		internalEndpoint = cfg.Endpoint
+	}
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(
 		ctx,
@@ -66,12 +70,16 @@ func NewRustFS(ctx context.Context, cfg config.RustFSConfig) (*RustFS, error) {
 		return nil, fmt.Errorf("load rustfs client config: %w", err)
 	}
 
-	client := s3.NewFromConfig(awsCfg, func(options *s3.Options) {
+	internalClient := s3.NewFromConfig(awsCfg, func(options *s3.Options) {
+		options.BaseEndpoint = aws.String(internalEndpoint)
+		options.UsePathStyle = cfg.UsePathStyle
+	})
+	publicClient := s3.NewFromConfig(awsCfg, func(options *s3.Options) {
 		options.BaseEndpoint = aws.String(cfg.Endpoint)
 		options.UsePathStyle = cfg.UsePathStyle
 	})
-	store.client = client
-	store.presigner = s3.NewPresignClient(client)
+	store.client = internalClient
+	store.presigner = s3.NewPresignClient(publicClient)
 	return store, nil
 }
 
