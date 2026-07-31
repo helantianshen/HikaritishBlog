@@ -3,8 +3,14 @@ set -euo pipefail
 
 source_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 project_root="${RELEASE_ROOT:-${source_root}}"
-app_env="${APP_ENV_FILE:-${project_root}/deploy/app.env}"
-admin_token_file="${ADMIN_TOKEN_FILE:-${project_root}/deploy/admin.token}"
+default_app_env="${project_root}/deploy/app.env"
+default_admin_token_file="${project_root}/deploy/admin.token"
+if [[ -r "${project_root}/app.env" ]]; then
+  default_app_env="${project_root}/app.env"
+  default_admin_token_file="${project_root}/admin.token"
+fi
+app_env="${APP_ENV_FILE:-${default_app_env}}"
+admin_token_file="${ADMIN_TOKEN_FILE:-${default_admin_token_file}}"
 
 if [[ -r "${app_env}" ]]; then
   set +a

@@ -3,8 +3,14 @@ set -euo pipefail
 
 source_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 project_root="${RELEASE_ROOT:-${source_root}}"
-app_env="${APP_ENV_FILE:-${project_root}/deploy/app.env}"
-admin_token_file="${ADMIN_TOKEN_FILE:-${project_root}/deploy/admin.token}"
+default_app_env="${project_root}/deploy/app.env"
+default_admin_token_file="${project_root}/deploy/admin.token"
+if [[ -r "${project_root}/app.env" ]]; then
+  default_app_env="${project_root}/app.env"
+  default_admin_token_file="${project_root}/admin.token"
+fi
+app_env="${APP_ENV_FILE:-${default_app_env}}"
+admin_token_file="${ADMIN_TOKEN_FILE:-${default_admin_token_file}}"
 api_session="${API_SCREEN_NAME:-hikaritish-api}"
 web_session="${WEB_SCREEN_NAME:-hikaritish-web}"
 
@@ -52,12 +58,12 @@ if screen -list | grep -q "[.]${web_session}[[:space:]]"; then
   exit 1
 fi
 
-screen -DmS "${api_session}" env \
+screen -dmS "${api_session}" env \
   RELEASE_ROOT="${project_root}" \
   APP_ENV_FILE="${app_env}" \
   ADMIN_TOKEN_FILE="${admin_token_file}" \
   "${api_runner}"
-screen -DmS "${web_session}" env \
+screen -dmS "${web_session}" env \
   RELEASE_ROOT="${project_root}" \
   APP_ENV_FILE="${app_env}" \
   "${web_runner}"

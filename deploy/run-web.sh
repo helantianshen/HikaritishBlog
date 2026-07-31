@@ -3,7 +3,11 @@ set -euo pipefail
 
 source_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 project_root="${RELEASE_ROOT:-${source_root}}"
-app_env="${APP_ENV_FILE:-${project_root}/deploy/app.env}"
+default_app_env="${project_root}/deploy/app.env"
+if [[ -r "${project_root}/app.env" ]]; then
+  default_app_env="${project_root}/app.env"
+fi
+app_env="${APP_ENV_FILE:-${default_app_env}}"
 web_dir="${project_root}/XHBlogs/.next/standalone"
 web_entry="${web_dir}/server.js"
 
